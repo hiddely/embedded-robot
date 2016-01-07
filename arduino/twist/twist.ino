@@ -1,6 +1,7 @@
 
 #include <ros.h>
 #include <geometry_msgs/Twist.h>
+#include <geometry_msgs/Vector3.h>
 
 const int PIN_1_FWD = 6;
 const int PIN_1_REV = 7;
@@ -13,7 +14,41 @@ const int PIN_LED = 13;
 ros::NodeHandle  nh;
 
 void messageCb( const geometry_msgs::Twist& geometry_msg){
-
+  
+  geometry_msgs::Vector3 linear = geometry_msg.linear;
+  geometry_msgs::Vector3 angular = geometry_msg.angular;
+  
+  float fwd_speed = linear.x;
+  float lft_speed;
+  float rgt_speed;
+  
+  float th = angular.z;
+ 
+  
+  /*if (fwd_speed == 0 && th == 0) {
+    digitalWrite(PIN_1_ENA, LOW);
+    digitalWrite(PIN_2_ENA, LOW);
+    return;
+  } else {
+    // TODO not every loop
+    digitalWrite(PIN_1_ENA, HIGH);
+    digitalWrite(PIN_2_ENA, HIGH);
+  }*/
+  
+  rgt_speed = fwd_speed - th;
+  lft_speed = fwd_speed + th;
+  
+  if (fwd_speed < 0) {
+    analogWrite(PIN_1_REV, lft_speed * -100);
+    analogWrite(PIN_1_FWD, 0);
+    analogWrite(PIN_2_REV, rgt_speed * -100);
+    analogWrite(PIN_2_FWD, 0);
+  } else {
+    analogWrite(PIN_1_FWD, lft_speed * 100);
+    analogWrite(PIN_1_REV, 0);
+    analogWrite(PIN_2_FWD, rgt_speed * 100);
+    analogWrite(PIN_2_REV, 0);
+  }
 }
 
 ros::Subscriber<geometry_msgs::Twist> sub("cmd_vel", &messageCb );
@@ -22,11 +57,15 @@ ros::Subscriber<geometry_msgs::Twist> sub("cmd_vel", &messageCb );
   
 }*/
 
-void setup() {
+/*class NewHardware: public ArduinoHardware {
+  public: NewHardware():ArduinoHardware(&Serial1 , 57600){};
+  );
   
-  Serial.begin(9600);
-  //Keyboard.begin(); // enable when connected
+ros::NodeHandle_<NewHardware> nh1;*/
 
+void setup() {
+  //Serial.begin(9600);
+  //Keyboard.begin(); // enable when connected
 
   pinMode(PIN_1_FWD, OUTPUT);
   pinMode(PIN_1_REV, OUTPUT);
@@ -36,6 +75,11 @@ void setup() {
   pinMode(PIN_2_ENA, OUTPUT);
   
   pinMode(PIN_LED, OUTPUT);
+  
+  nh.initNode();
+  nh.subscribe(sub);
+  
+  digitalWrite(PIN_LED, HIGH);
   
   digitalWrite(PIN_1_ENA, HIGH);
   digitalWrite(PIN_2_ENA, HIGH);
@@ -50,20 +94,13 @@ void setup() {
   TCCR1B |= (1 << WGM12);   // CTC mode
   TCCR1B |= (1 << CS12);    // 256 prescaler 
   TIMSK1 |= (1 << OCIE1A);  // enable timer compare interrupt
-  interrupts();             // enable all interrupts
-*/
+  interrupts();*/             // enable all interrupts
+
 }
 
 void loop() {
-  
-  // check for incoming serial data:
-  if (Serial.available() > 0) {
-    // read incoming serial data:
-    char inChar = Serial.read();
-    controlMotors(inChar);
-    
-  }  
-  
+  nh.spinOnce();
+  delay(1);
 }
 
 void controlMotors(char inChar) {
