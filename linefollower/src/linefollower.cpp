@@ -1,0 +1,202 @@
+#include <ros/ros.h>
+#include <image_transport/image_transport.h>
+#include <geometry_msgs/Twist.h>
+#include <cv_bridge/cv_bridge.h>
+#include <sensor_msgs/image_encodings.h>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <ros/console.h>
+#include <math.h>
+#include <stdlib.h>
+#include "linefinder.h"
+
+using namespace cv;
+
+static const std::string OPENCV_WINDOW = "Image window";
+static const std::string CORNERS_WINDOW = "Edit window";
+
+static const bool showSteps = true;
+
+void detectLines(vector<Vec4i> lines, Mat image);
+void publishTwist(double fwd_speed, double theta);
+
+class ImageConverter
+{
+  ros::NodeHandle nh_;
+  image_transport::ImageTransport it_;
+  image_transport::Subscriber image_sub_;
+  ros::Publisher twist_pub_;
+  
+public:
+  ImageConverter()
+    : it_(nh_)
+  {
+    // Subscrive to input video feed and publish output video feed
+    image_sub_ = it_.subscribe("/camera/image_repub", 1, 
+      &ImageConverter::imageCb, this);
+    twist_pub_ = nh_.advertise<geometry_msgs::Twist>("/cmd_vel", 1);
+
+    cv::namedWindow(OPENCV_WINDOW);
+  }
+
+  ~ImageConverter()
+  {
+    cv::destroyWindow(OPENCV_WINDOW);
+  }
+
+  void imageCb(const sensor_msgs::ImageConstPtr& msg)
+  {
+    cv_bridge::CvImagePtr cv_ptr;
+
+    try
+    {
+      cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
+    }
+    catch (cv_bridge::Exception& e)
+    {
+      ROS_ERROR("cv_bridge exception: %s", e.what());
+      return;
+    }
+
+    Mat dst, color_dst, roi;
+    Rect r = Rect(cv_ptr->image.cols * 0.75, 0, cv_ptr->image.cols / 4, cv_ptr->image.rows);
+    Mat image = cv_ptr->image(r);
+    Canny(image, dst, 50, 100, 3 );
+    cvtColor( dst, color_dst, CV_GRAY2BGR );
+    //color_dst = cv_ptr->image > 128;
+
+    vector<Vec4i> lines;
+    HoughLinesP( dst, lines, 1, CV_PI/180, 50, 30, 80 );
+    if (showSteps) {
+    for( size_t i = 0; i < lines.size(); i++ )
+    {
+        line( image, Point(lines[i][0], lines[i][1]),
+            Point(lines[i][2], lines[i][3]), Scalar(0,0,255), 3, 8 );
+    }
+}
+    detectLines(lines, image);
+
+if (showSteps) {
+    // Update GUI Window
+    cv::imshow(OPENCV_WINDOW, image);
+    cv::waitKey(3);
+}
+    
+  }
+
+
+void detectLines(vector<Vec4i> lines, Mat image) {
+  // subdivide
+  double bottomX = 0, topX = 0;
+  double thresh = 5;
+  vector<Vec4i> top, bottom;
+  Vec4i h, l;
+ for( size_t i = 0; i < lines.size(); i++ )
+    {
+    double x1 = lines[i][1];
+    double x2 = lines[i][3];
+    double xAvg = (x1+x2)/2;
+    double hAvg = (h[1]+h[3])/2;
+    double lAvg = (l[1]+l[3])/2;
+    if (hAvg == 0) {
+       h = lines[i];
+       std::cout << "Setting top " << xAvg << "\n";
+    } else
+    if (lAvg == 0) {
+       l = lines[i];
+       std::cout << "Setting bottom " << xAvg << "\n";
+    } else {
+       std::cout << "Found " << xAvg << "\n";
+    if (hAvg < xAvg) {
+       std::cout << "Increasing top " << xAvg << "\n";
+       h = lines[i];
+    }
+    if (lAvg > xAvg) {
+       l = lines[i];
+       std::cout << "Increasing bottom " << xAvg << "\n";
+    }
+}
+    /*if (bottomX != 0 && topX != 0) {
+std::cout << xAvg << " " << xAvg-bottomX << "\n";
+       if (abs(xAvg-bottomX) < thresh) {
+         bottom.push_back(lines[i]);
+       } else if (abs(xAvg-topX) < thresh) {
+         top.push_back(lines[i]);
+       }
+    } else {
+       if (bottomX != 0 && abs(xAvg-bottomX) > thresh) {
+         topX = xAvg;
+         if (topX < bottomX) {
+         // swap
+std::cout << "Swapping ";
+            topX = bottomX;
+            bottomX = xAvg;
+            top = bottom;
+         }
+         bottom.assign(1, lines[i]);
+       }
+       bottomX = xAvg;
+       bottom.push_back(lines[i]);
+
+    }*/
+
+  }
+   if (lines.size() > 1 && showSteps) {
+
+      line( image, Point(h[0], h[1]),
+            Point(h[2], h[3]), Scalar(255,0,255), 3, 8 );
+      line( image, Point(l[0], l[1]),
+            Point(l[2], l[3]), Scalar(0,255,255), 3, 8 );
+   }
+
+  double hAvg = (h[1]+h[3])/2;
+  double lAvg = (l[1]+l[3])/2;
+  double avgPos = (hAvg + lAvg) / 2;
+  double offset = 0; // when camera is not in the middle
+  double threshold = 30;
+  double imageMiddle = image.rows / 2;
+
+if (hAvg != 0 && lAvg != 0) {
+    double fwd_speed = 100;
+  if (abs(avgPos - imageMiddle) > threshold) {
+
+    double angular_mul = 1;
+    if (avgPos > imageMiddle) { // above, move to left
+      putText(image, "Left", Point(50,100), FONT_HERSHEY_SIMPLEX, 1, Scalar(0,200,200), 4);
+    } else {
+      putText(image, "Right", Point(50,100), FONT_HERSHEY_SIMPLEX, 1, Scalar(0,200,200), 4);
+    }
+    publishTwist(fwd_speed, angular_mul * (avgPos - imageMiddle));
+
+  } else {
+    publishTwist(fwd_speed, 0);
+  }
+
+} else {
+  // stop robot, we have lost path
+   publishTwist(0, 0);
+}
+
+  
+}
+
+void publishTwist(double fwd_speed, double theta) {
+  geometry_msgs::Twist base_cmd;
+  base_cmd.linear.x = fwd_speed;
+  base_cmd.angular.z = theta;
+  twist_pub_.publish(base_cmd);
+}
+
+};
+
+int main(int argc, char** argv)
+{
+ROS_INFO("Hello22 %s", "World");
+  ros::init(argc, argv, "image_converter");
+  ImageConverter ic;
+  ros::spin();
+printf("MAIN");
+ROS_INFO("Hello %s", "World");
+  return 0;
+}
+
