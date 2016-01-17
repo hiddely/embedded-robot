@@ -99,8 +99,8 @@ void setup() {
   digitalWrite(PIN_1_ENA, HIGH);
   digitalWrite(PIN_2_ENA, HIGH);
   
-  TCCR3A = _BV(COM3A1) | _BV(COM3B1) | _BV(WGM30);
-  TCCR3B = _BV(CS32);
+  //TCCR3A = _BV(COM3A1) | _BV(COM3B1) | _BV(WGM30);
+  //TCCR3B = _BV(CS32);
   //OCR3A = 180;
 
   // Set up 
