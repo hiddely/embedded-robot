@@ -13,7 +13,6 @@
 using namespace cv;
 
 static const std::string OPENCV_WINDOW = "Image window";
-static const std::string CORNERS_WINDOW = "Edit window";
 
 static const bool showSteps = true;
 
@@ -68,19 +67,19 @@ public:
     vector<Vec4i> lines;
     HoughLinesP( dst, lines, 1, CV_PI/180, 50, 30, 80 );
     if (showSteps) {
-    for( size_t i = 0; i < lines.size(); i++ )
-    {
-        line( image, Point(lines[i][0], lines[i][1]),
+      for( size_t i = 0; i < lines.size(); i++ )
+      {
+          line( image, Point(lines[i][0], lines[i][1]),
             Point(lines[i][2], lines[i][3]), Scalar(0,0,255), 3, 8 );
+      }
     }
-}
     detectLines(lines, image);
 
-if (showSteps) {
-    // Update GUI Window
-    cv::imshow(OPENCV_WINDOW, image);
-    cv::waitKey(3);
-}
+    if (showSteps) {
+        // Update GUI Window
+        cv::imshow(OPENCV_WINDOW, image);
+        cv::waitKey(3);
+    }
     
   }
 
@@ -91,7 +90,7 @@ void detectLines(vector<Vec4i> lines, Mat image) {
   double thresh = 5;
   vector<Vec4i> top, bottom;
   Vec4i h, l;
- for( size_t i = 0; i < lines.size(); i++ )
+  for( size_t i = 0; i < lines.size(); i++ )
     {
     double x1 = lines[i][1];
     double x2 = lines[i][3];
@@ -100,13 +99,12 @@ void detectLines(vector<Vec4i> lines, Mat image) {
     double lAvg = (l[1]+l[3])/2;
     if (hAvg == 0) {
        h = lines[i];
-       std::cout << "Setting top " << xAvg << "\n";
+       //std::cout << "Setting top " << xAvg << "\n";
     } else
     if (lAvg == 0) {
        l = lines[i];
-       std::cout << "Setting bottom " << xAvg << "\n";
     } else {
-       std::cout << "Found " << xAvg << "\n";
+       //std::cout << "Found " << xAvg << "\n";
     if (hAvg < xAvg) {
        std::cout << "Increasing top " << xAvg << "\n";
        h = lines[i];
@@ -115,30 +113,7 @@ void detectLines(vector<Vec4i> lines, Mat image) {
        l = lines[i];
        std::cout << "Increasing bottom " << xAvg << "\n";
     }
-}
-    /*if (bottomX != 0 && topX != 0) {
-std::cout << xAvg << " " << xAvg-bottomX << "\n";
-       if (abs(xAvg-bottomX) < thresh) {
-         bottom.push_back(lines[i]);
-       } else if (abs(xAvg-topX) < thresh) {
-         top.push_back(lines[i]);
-       }
-    } else {
-       if (bottomX != 0 && abs(xAvg-bottomX) > thresh) {
-         topX = xAvg;
-         if (topX < bottomX) {
-         // swap
-std::cout << "Swapping ";
-            topX = bottomX;
-            bottomX = xAvg;
-            top = bottom;
-         }
-         bottom.assign(1, lines[i]);
-       }
-       bottomX = xAvg;
-       bottom.push_back(lines[i]);
-
-    }*/
+  }
 
   }
    if (lines.size() > 1 && showSteps) {
@@ -155,12 +130,13 @@ std::cout << "Swapping ";
   double offset = 0; // when camera is not in the middle
   double threshold = 30;
   double imageMiddle = image.rows / 2;
-
-if (hAvg != 0 && lAvg != 0) {
-    double fwd_speed = 100;
+  int maxLines = 250;
+       std::cout << "S " << lines.size() << "\n";
+if (hAvg != 0 && lAvg != 0 && lines.size() < maxLines) {
+    double fwd_speed = 70;
   if (abs(avgPos - imageMiddle) > threshold) {
 
-    double angular_mul = 1;
+    double angular_mul = 0.1;
     if (avgPos > imageMiddle) { // above, move to left
       putText(image, "Left", Point(50,100), FONT_HERSHEY_SIMPLEX, 1, Scalar(0,200,200), 4);
     } else {
@@ -172,9 +148,12 @@ if (hAvg != 0 && lAvg != 0) {
     publishTwist(fwd_speed, 0);
   }
 
+} else if (lines.size() > maxLines) {
+  publishTwist(-120, 0);
+
 } else {
   // stop robot, we have lost path
-   publishTwist(0, 0);
+   publishTwist(-50, 0);
 }
 
   
